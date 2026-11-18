@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2048 - Hall Pass Games</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #101722; color: #edf2f7; font-family: Arial, sans-serif; }
+  #hp2048 { width: min(100%, 440px); margin: auto; padding: 18px; outline: none; }
+  #hp2048 header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #hp2048 h1 { margin: 0; font-size: 48px; letter-spacing: -2px; }
+  #hp2048 .brand { margin: 0 0 4px; font-size: 10px; font-weight: bold; letter-spacing: 2px; color: #a3e635; }
+  #hp2048 .scores { display: flex; gap: 6px; }
+  #hp2048 .score { padding: 9px 12px; min-width: 64px; border-radius: 10px; background: #243041; text-align: center; }
+  #hp2048 .score span { display: block; color: #a7b2c3; font-size: 10px; margin-bottom: 4px; }
+  #hp2048 .score strong { font-size: 20px; }
+  #hp2048 button { border: 0; border-radius: 9px; background: #29374b; color: #fff; padding: 11px 16px; font: bold 14px Arial, sans-serif; cursor: pointer; }
+  #hp2048 button:hover { background: #36475e; }
+  #hp2048 button:focus-visible { outline: 3px solid #a3e635; outline-offset: 3px; }
+  #hp2048 button:disabled { opacity: .4; cursor: default; }
+  #hp2048 .actions { display: flex; gap: 8px; margin: 16px 0 12px; }
+  #hp2048 #hp-new { background: #a3e635; color: #14200a; }
+  #hp2048 #hp-new:hover { background: #bef264; }
+  #hp2048 .hint { color: #a7b2c3; font-size: 13px; line-height: 1.5; margin: 12px 0; }
+  #hp2048 .board-wrap { position: relative; }
+  #hp2048 .board { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 8px; background: #243041; border-radius: 12px; touch-action: none; user-select: none; }
+  #hp2048 .tile { aspect-ratio: 1; min-width: 0; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: #344256; font-weight: bold; }
+  #hp2048 .tile.spawn { animation: hp-pop .14s ease-out; }
+  #hp2048 .overlay { position: absolute; inset: 0; border-radius: 12px; background: #101722e8; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; }
+  #hp2048 .overlay[hidden] { display: none; }
+  #hp2048 .overlay strong { font-size: 32px; }
+  #hp2048 .directions { display: flex; justify-content: center; gap: 8px; margin-top: 14px; }
+  #hp2048 .directions button { width: 56px; padding: 10px 0; font-size: 22px; }
+  #hp2048 .status { min-height: 20px; margin: 12px 0 0; font-size: 13px; color: #c0cbd9; text-align: center; }
+  @keyframes hp-pop { from { transform: scale(.65); opacity: .5; } to { transform: scale(1); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { #hp2048 .tile.spawn { animation: none; } }
+  @media (max-width: 340px) { #hp2048 { padding: 12px; } #hp2048 h1 { font-size: 40px; } #hp2048 .score { padding: 8px; min-width: 54px; } }
+</style>
+</head>
+<body>
+<main id="hp2048" tabindex="0" aria-label="2048 game" aria-describedby="hp-instructions">
+  <header>
+    <div><p class="brand">HALL PASS GAMES</p><h1>2048</h1></div>
+    <div class="scores">
+      <div class="score"><span>SCORE</span><strong id="hp-score">0</strong></div>
+      <div class="score"><span>BEST</span><strong id="hp-best">0</strong></div>
+    </div>
+  </header>
+  <div class="actions"><button id="hp-new" type="button">New game</button><button id="hp-undo" type="button" disabled>Undo</button></div>
+  <p class="hint" id="hp-instructions">Click the game, then use arrow keys or WASD. On a phone, swipe or use the buttons. Combine matching tiles to reach <b>2048</b>.</p>
+  <div class="board-wrap">
+    <div id="hp-board" class="board" role="group" aria-label="Game board"></div>
+    <div id="hp-over" class="overlay" hidden><strong>Game over</strong><button id="hp-retry" type="button">Try again</button></div>
+  </div>
+  <div class="directions" aria-label="Move tiles">
+    <button type="button" data-dir="left" aria-label="Move left">&#8592;</button>
+    <button type="button" data-dir="up" aria-label="Move up">&#8593;</button>
+    <button type="button" data-dir="down" aria-label="Move down">&#8595;</button>
+    <button type="button" data-dir="right" aria-label="Move right">&#8594;</button>
+  </div>
+  <p id="hp-status" class="status" aria-live="polite"></p>
+</main>
+<script>
+(() => {
+  'use strict';
+  const app = document.getElementById('hp2048');
+  const board = app.querySelector('#hp-board');
+  const scoreEl = app.querySelector('#hp-score');
+  const bestEl = app.querySelector('#hp-best');
+  const undoBtn = app.querySelector('#hp-undo');
+  const overEl = app.querySelector('#hp-over');
+  const statusEl = app.querySelector('#hp-status');
+  const storageKey = 'hallpass-2048-best';
+  const colors = {2:'#e2e8f0',4:'#cbd5e1',8:'#fdba74',16:'#fb923c',32:'#f97316',64:'#ef4444',128:'#fde047',256:'#facc15',512:'#eab308',1024:'#bef264',2048:'#a3e635'};
+  let cells, score, best = 0, previous = null, spawned = -1;
+  try { const saved = Number(localStorage.getItem(storageKey)); if (Number.isFinite(saved) && saved > 0) best = saved; } catch (_) {}
+
+  function spawn() {
+    const empty = [];
+    cells.forEach((value, i) => { if (!value) empty.push(i); });
+    if (!empty.length) return;
+    spawned = empty[Math.floor(Math.random() * empty.length)];
+    cells[spawned] = Math.random() < .9 ? 2 : 4;
+  }
+
+  function hasMoves() {
+    for (let i = 0; i < 16; i++) {
+      if (!cells[i]) return true;
+      if (i % 4 < 3 && cells[i] === cells[i + 1]) return true;
+      if (i < 12 && cells[i] === cells[i + 4]) return true;
+    }
+    return false;
+  }
+
+  function draw() {
+    const tiles = cells.map((value, i) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile' + (value && i === spawned ? ' spawn' : '');
+      tile.textContent = value || '';
+      tile.setAttribute('aria-label', 'Row ' + (Math.floor(i / 4) + 1) + ', column ' + (i % 4 + 1) + ': ' + (value || 'empty'));
+      if (value) {
+        tile.style.background = colors[value] || '#67e8f9';
+        tile.style.color = value >= 8 && value <= 64 ? '#fff' : '#182231';
+        tile.style.fontSize = value < 100 ? 'clamp(22px,8vw,36px)' : value < 1000 ? 'clamp(19px,7vw,30px)' : value < 10000 ? 'clamp(16px,6vw,25px)' : 'clamp(12px,4vw,18px)';
+      }
+      return tile;
+    });
+    board.replaceChildren(...tiles);
+    scoreEl.textContent = score;
+    bestEl.textContent = best;
+    undoBtn.disabled = !previous;
+    const ended = !hasMoves();
+    overEl.hidden = !ended;
+    statusEl.textContent = ended ? 'No moves left. Try again or undo.' : cells.some(v => v >= 2048) ? '2048 reached! Keep going for a higher score.' : 'Join the numbers. Reach 2048.';
+  }
+
+  function newGame() {
+    cells = Array(16).fill(0);
+    score = 0;
+    previous = null;
+    spawn(); spawn(); draw();
+  }
+
+  function move(direction) {
+    const next = cells.slice();
+    let points = 0;
+    for (let line = 0; line < 4; line++) {
+      const indices = Array.from({length:4}, (_, p) => direction === 'left' ? line * 4 + p : direction === 'right' ? line * 4 + 3 - p : direction === 'up' ? p * 4 + line : (3 - p) * 4 + line);
+      const values = indices.map(i => cells[i]).filter(Boolean);
+      const merged = [];
+      for (let i = 0; i < values.length; i++) {
+        if (values[i] === values[i + 1]) {
+          const value = values[i] * 2;
+          merged.push(value); points += value; i++;
+        } else merged.push(values[i]);
+      }
+      indices.forEach((index, p) => { next[index] = merged[p] || 0; });
+    }
+    if (next.every((value, i) => value === cells[i])) return;
+    previous = {cells:cells.slice(), score};
+    cells = next;
+    score += points;
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem(storageKey, String(best)); } catch (_) {}
+    }
+    spawn(); draw();
+  }
+
+  function focusGame() { app.focus({preventScroll:true}); }
+  app.querySelector('#hp-new').addEventListener('click', () => { newGame(); focusGame(); });
+  app.querySelector('#hp-retry').addEventListener('click', () => { newGame(); focusGame(); });
+  undoBtn.addEventListener('click', () => {
+    if (!previous) return;
+    cells = previous.cells.slice(); score = previous.score; previous = null; spawned = -1;
+    draw(); focusGame();
+  });
+  app.querySelectorAll('[data-dir]').forEach(button => button.addEventListener('click', () => { move(button.dataset.dir); focusGame(); }));
+  app.addEventListener('pointerdown', event => { if (!event.target.closest('button')) focusGame(); });
+  const keys = {ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',a:'left',d:'right',w:'up',s:'down'};
+  app.addEventListener('keydown', event => {
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
+    const direction = keys[event.key] || keys[event.key.toLowerCase()];
+    if (direction) { event.preventDefault(); move(direction); }
+  });
+  let touch = null;
+  board.addEventListener('pointerdown', event => {
+    if (event.pointerType === 'mouse' || touch) return;
+    touch = {x:event.clientX, y:event.clientY, id:event.pointerId};
+    board.setPointerCapture(event.pointerId);
+  });
+  board.addEventListener('pointerup', event => {
+    if (!touch || event.pointerId !== touch.id) return;
+    const dx = event.clientX - touch.x, dy = event.clientY - touch.y;
+    touch = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+    move(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up');
+  });
+  board.addEventListener('pointercancel', () => { touch = null; });
+  newGame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake</title>
+  <style>
+    :root { color-scheme: dark; --bg: #0b1016; --panel: #141c25; --line: #26323d; --text: #f1f6f2; --muted: #98a6b2; --green: #b4f769; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100svh; display: grid; place-items: center; background: var(--bg); color: var(--text); font-family: "Segoe UI", system-ui, sans-serif; padding: 24px 18px; }
+    button { font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, .stage:focus-visible { outline: 3px solid var(--green); outline-offset: 5px; }
+    button:disabled { cursor: default; opacity: .45; }
+    button, .stage { touch-action: manipulation; }
+    .game { width: min(100%, 552px); }
+    .header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+    .brand { color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; margin: 0 0 3px; }
+    h1 { font-size: clamp(32px, 6vw, 44px); line-height: 1.1; font-weight: 800; letter-spacing: -.055em; margin: 0; }
+    h1::after { content: "."; color: var(--green); }
+    .scores { display: flex; gap: 22px; text-align: right; }
+    .score-label { display: block; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .1em; margin-bottom: 4px; }
+    .score-value { font-size: 28px; font-weight: 750; font-variant-numeric: tabular-nums; line-height: 1; }
+    #score { color: var(--green); }
+    .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+    .status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+    .status-dot { width: 7px; height: 7px; background: #7f8d9b; border-radius: 50%; flex-shrink: 0; }
+    .status[data-state="playing"] .status-dot { background: var(--green); }
+    .status[data-state="dead"] .status-dot { background: #ff8576; }
+    .controls { display: flex; gap: 8px; }
+    .control { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 38px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: #c7d1d9; font-size: 14px; padding: 7px 11px; }
+    .control:hover:not(:disabled) { background: #1e2b37; color: white; }
+    .control svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; }
+    .stage { position: relative; aspect-ratio: 1; width: 100%; border: 1px solid #304033; border-radius: 16px; overflow: hidden; background: #111a18; box-shadow: 0 16px 48px #0003; touch-action: none; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .overlay { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; background: #09100cb3; backdrop-filter: blur(2px); padding: 20px; }
+    .overlay[hidden] { display: none; }
+    .overlay-content { max-width: 300px; }
+    .tag { display: inline-block; color: var(--green); border: 1px solid #b4f76940; background: #b4f7690b; border-radius: 6px; font-size: 12px; font-weight: 700; letter-spacing: .13em; padding: 7px 10px; margin-bottom: 16px; }
+    .overlay h2 { margin: 0 0 10px; font-size: clamp(25px, 5vw, 36px); letter-spacing: -.035em; line-height: 1.1; }
+    .overlay p { color: #b1c1b4; font-size: 16px; line-height: 1.5; margin: 0 0 24px; }
+    .play { min-width: 146px; min-height: 48px; padding: 12px 26px; border: 0; border-radius: 9px; background: var(--green); color: #152409; font-size: 16px; font-weight: 800; box-shadow: 0 4px 0 #5c8531; }
+    .play:hover { background: #c8ff88; }
+    .play:active { transform: translateY(2px); box-shadow: 0 2px 0 #5c8531; }
+    .instructions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 18px; color: var(--muted); font-size: 14px; line-height: 1.6; }
+    .instructions p { margin: 0; }
+    kbd { font: 600 12px "Segoe UI", system-ui, sans-serif; border: 1px solid #33404b; background: var(--panel); border-radius: 4px; padding: 2px 5px; color: #d5dee5; }
+    .save-note { color: #788a7c; font-size: 12px; }
+    .touch-help { display: none; }
+    .touch-controls { display: none; grid-template-columns: repeat(3, 48px); grid-template-rows: repeat(2, 44px); justify-content: center; gap: 6px; margin: 17px 0 0; }
+    .direction { border: 1px solid #33483b; border-radius: 10px; background: #18261d; color: var(--green); font-size: 23px; line-height: 1; user-select: none; touch-action: none; }
+    .direction:active { background: #2d4325; }
+    [data-direction="up"] { grid-column: 2; }
+    [data-direction="left"] { grid-column: 1; grid-row: 2; }
+    [data-direction="down"] { grid-column: 2; grid-row: 2; }
+    [data-direction="right"] { grid-column: 3; grid-row: 2; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+    @media (max-width: 480px), (pointer: coarse) {
+      body { padding: 18px 14px; }
+      .header { margin-bottom: 18px; }
+      .scores { gap: 14px; }
+      .score-value { font-size: 25px; }
+      .touch-controls { display: grid; }
+      .touch-help { display: block; }
+      .desktop-help { display: none; }
+      .instructions { justify-content: center; text-align: center; }
+      .save-note { width: 100%; }
+    }
+    @media (max-width: 320px) {
+      .brand { font-size: 12px; letter-spacing: .04em; }
+      .scores { gap: 9px; }
+      .control { padding: 7px 9px; }
+      .control svg { display: none; }
+    }
+    @media (prefers-reduced-motion: reduce) { .play:active { transform: none; } }
+  </style>
+</head>
+<body>
+  <main class="game" aria-label="Snake game">
+    <header class="header">
+      <div><p class="brand">Hall Pass Games</p><h1>Snake</h1></div>
+      <div class="scores">
+        <div><span class="score-label">SCORE</span><strong class="score-value" id="score">00</strong></div>
+        <div><span class="score-label">BEST</span><strong class="score-value" id="best">00</strong></div>
+      </div>
+    </header>
+    <div class="toolbar">
+      <div class="status" id="status" data-state="ready"><span class="status-dot" aria-hidden="true"></span><span id="status-text">Ready</span></div>
+      <div class="controls">
+        <button class="control" id="pause" type="button" disabled><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M5 3v10M11 3v10"/></svg><span id="pause-label">Pause</span></button>
+        <button class="control" id="restart" type="button"><svg aria-hidden="true" viewBox="0 0 16 16"><path d="M3 7a5 5 0 1 1 1 5M3 3v4h4"/></svg>Restart</button>
+      </div>
+    </div>
+    <div class="stage" id="stage" tabindex="0" role="region" aria-label="Game board. Use arrow keys or WASD to move. Space pauses.">
+      <canvas id="board" width="660" height="660" aria-label="Snake play area">Your browser needs canvas support to play Snake.</canvas>
+      <div class="overlay" id="overlay">
+        <div class="overlay-content">
+          <span class="tag" id="overlay-tag">CLASSIC ARCADE</span>
+          <h2 id="overlay-title">Ready to play?</h2>
+          <p id="overlay-description">Eat the apples. Grow longer.<br>Avoid the walls and your tail.</p>
+          <button class="play" id="play" type="button">Play</button>
+        </div>
+      </div>
+    </div>
+    <div class="instructions">
+      <p class="desktop-help">Arrows / <kbd>WASD</kbd> to move · <kbd>Space</kbd> to pause</p>
+      <p class="touch-help">Swipe to move, or use the arrows below</p>
+      <p class="save-note" id="save-note">Best this session</p>
+    </div>
+    <div class="touch-controls" aria-label="Touch controls">
+      <button class="direction" type="button" data-direction="up" aria-label="Move up">↑</button>
+      <button class="direction" type="button" data-direction="left" aria-label="Move left">←</button>
+      <button class="direction" type="button" data-direction="down" aria-label="Move down">↓</button>
+      <button class="direction" type="button" data-direction="right" aria-label="Move right">→</button>
+    </div>
+    <p class="sr-only" id="announcement" role="status" aria-live="polite"></p>
+  </main>
+  <script>
+    (() => {
+      'use strict';
+
+      // Rules are independent of rendering and work without browser storage.
+      class SnakeModel {
+        constructor(size = 22, random = Math.random) {
+          this.size = size;
+          this.random = random;
+          this.reset();
+        }
+        reset() {
+          const middle = Math.floor(this.size / 2);
+          this.snake = Array.from({ length: 4 }, (_, i) => ({ x: middle - i, y: middle }));
+          this.direction = { x: 1, y: 0 };
+          this.turns = [];
+          this.score = 0;
+          this.outcome = 'running';
+          this.placeFood();
+        }
+        placeFood() {
+          const occupied = new Set(this.snake.map(p => p.y * this.size + p.x));
+          const empty = [];
+          for (let y = 0; y < this.size; y++) {
+            for (let x = 0; x < this.size; x++) {
+              if (!occupied.has(y * this.size + x)) empty.push({ x, y });
+            }
+          }
+          this.food = empty.length ? empty[Math.min(empty.length - 1, Math.floor(this.random() * empty.length))] : null;
+        }
+        queueTurn(next) {
+          if (this.outcome !== 'running' || this.turns.length >= 2) return;
+          const previous = this.turns.length ? this.turns[this.turns.length - 1] : this.direction;
+          if (next.x === previous.x && next.y === previous.y) return;
+          if (next.x === -previous.x && next.y === -previous.y) return;
+          this.turns.push(next);
+        }
+        step() {
+          if (this.outcome !== 'running') return;
+          if (this.turns.length) this.direction = this.turns.shift();
+          const head = { x: this.snake[0].x + this.direction.x, y: this.snake[0].y + this.direction.y };
+          const eating = this.food && head.x === this.food.x && head.y === this.food.y;
+          // The tail vacates its square when the snake isn't eating.
+          const body = eating ? this.snake : this.snake.slice(0, -1);
+          if (head.x < 0 || head.y < 0 || head.x >= this.size || head.y >= this.size || body.some(p => p.x === head.x && p.y === head.y)) {
+            this.outcome = 'dead';
+            return;
+          }
+          this.snake.unshift(head);
+          if (eating) {
+            this.score++;
+            this.placeFood();
+            if (!this.food) this.outcome = 'won';
+          } else {
+            this.snake.pop();
+          }
+        }
+      }
+
+      // Presentation and controls.
+      const $ = id => document.getElementById(id);
+      const canvas = $('board');
+      const ctx = canvas.getContext('2d');
+      const stage = $('stage');
+      const model = new SnakeModel();
+      const directions = { up: { x: 0, y: -1 }, down: { x: 0, y: 1 }, left: { x: -1, y: 0 }, right: { x: 1, y: 0 } };
+      const keys = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', w: 'up', s: 'down', a: 'left', d: 'right' };
+      const storageKey = 'hallpass.snake.best.v1';
+      let best = 0;
+      let storageAvailable = false;
+      try {
+        const saved = Number(localStorage.getItem(storageKey));
+        if (Number.isSafeInteger(saved) && saved > 0) best = saved;
+        localStorage.setItem(storageKey, String(best));
+        storageAvailable = true;
+      } catch (_) { /* Sandboxed embeds may restrict storage; the game still runs. */ }
+      let phase = 'ready';
+      let lastTime = null;
+      let accumulated = 0;
+      let newBestThisRound = false;
+      let pointer = null;
+      const format = number => String(number).padStart(2, '0');
+      $('best').textContent = format(best);
+      $('save-note').textContent = storageAvailable ? 'Best saved on this device' : 'Best this session';
+
+      function saveBest() {
+        if (model.score <= best) return;
+        best = model.score;
+        newBestThisRound = true;
+        $('best').textContent = format(best);
+        if (storageAvailable) {
+          try { localStorage.setItem(storageKey, String(best)); }
+          catch (_) { storageAvailable = false; $('save-note').textContent = 'Best this session'; }
+        }
+      }
+      function setStatus(state, label) {
+        phase = state;
+        $('status').dataset.state = state;
+        $('status-text').textContent = label;
+        $('pause').disabled = state !== 'playing' && state !== 'paused';
+        $('pause-label').textContent = state === 'paused' ? 'Resume' : 'Pause';
+      }
+      function showOverlay(tag, title, description, button) {
+        $('overlay-tag').textContent = tag;
+        $('overlay-title').textContent = title;
+        $('overlay-description').textContent = description;
+        $('play').textContent = button;
+        $('overlay').hidden = false;
+      }
+      function focusGame() { stage.focus({ preventScroll: true }); }
+      function start() {
+        model.reset();
+        newBestThisRound = false;
+        $('score').textContent = '00';
+        accumulated = 0;
+        lastTime = null;
+        setStatus('playing', 'Playing');
+        $('overlay').hidden = true;
+        $('announcement').textContent = 'Game started.';
+        focusGame();
+        draw();
+      }
+      function togglePause() {
+        if (phase === 'playing') {
+          setStatus('paused', 'Paused');
+          showOverlay('TAKE A BREATHER', 'Paused', 'Your snake is right where you left it.', 'Resume');
+          $('announcement').textContent = 'Game paused.';
+        } else if (phase === 'paused') {
+          accumulated = 0;
+          lastTime = null;
+          setStatus('playing', 'Playing');
+          $('overlay').hidden = true;
+          $('announcement').textContent = 'Game resumed.';
+          focusGame();
+        }
+      }
+      function finish() {
+        saveBest();
+        const won = model.outcome === 'won';
+        setStatus(won ? 'won' : 'dead', won ? 'You won' : 'Game over');
+        showOverlay(won ? 'BOARD COMPLETE' : newBestThisRound ? 'NEW BEST' : 'ROUND OVER', won ? 'You filled the board!' : 'Game over', `Score: ${model.score} · Best: ${best}`, 'Play again');
+        $('announcement').textContent = `${won ? 'You won.' : 'Game over.'} Score ${model.score}. Best ${best}.`;
+      }
+      function turn(direction) {
+        if (phase === 'playing') model.queueTurn(directions[direction]);
+      }
+
+      function roundedRect(x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, width, height, radius);
+        ctx.fill();
+      }
+      function draw() {
+        const cell = canvas.width / model.size;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#111a18';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (let y = 0; y < model.size; y++) {
+          for (let x = 0; x < model.size; x++) {
+            if ((x + y) % 2 === 0) { ctx.fillStyle = '#15201c'; ctx.fillRect(x * cell, y * cell, cell, cell); }
+          }
+        }
+        if (model.food) {
+          const x = (model.food.x + .5) * cell;
+          const y = (model.food.y + .5) * cell;
+          ctx.shadowColor = '#ff7868';
+          ctx.shadowBlur = 16;
+          ctx.fillStyle = '#ff8576';
+          ctx.beginPath(); ctx.arc(x, y + 1, cell * .30, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#c8ef88';
+          ctx.beginPath(); ctx.ellipse(x + 4, y - 11, 5, 2.5, -.55, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = '#ffcec4';
+          ctx.beginPath(); ctx.arc(x - 3, y - 2, 2, 0, Math.PI * 2); ctx.fill();
+        }
+        for (let i = model.snake.length - 1; i >= 0; i--) {
+          const part = model.snake[i];
+          ctx.fillStyle = i === 0 ? '#c0ff7d' : `hsl(${100 + Math.min(i, 40) * .45} 61% ${Math.max(40, 65 - i * .65)}%)`;
+          roundedRect(part.x * cell + 2, part.y * cell + 2, cell - 4, cell - 4, i === 0 ? 8 : 6);
+        }
+        const head = model.snake[0];
+        const hx = (head.x + .5) * cell;
+        const hy = (head.y + .5) * cell;
+        const dx = model.direction.x, dy = model.direction.y;
+        ctx.fillStyle = '#1c3512';
+        for (const side of [-1, 1]) {
+          ctx.beginPath();
+          ctx.arc(hx + dx * 6 - dy * side * 5, hy + dy * 6 + dx * side * 5, 2.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      function frame(time) {
+        if (lastTime === null) lastTime = time;
+        if (phase === 'playing') {
+          accumulated += Math.min(time - lastTime, 200);
+          const interval = Math.max(85, 150 - model.score * 3);
+          let changed = false;
+          while (accumulated >= interval && phase === 'playing') {
+            accumulated -= interval;
+            model.step();
+            changed = true;
+            $('score').textContent = format(model.score);
+            saveBest();
+            if (model.outcome !== 'running') finish();
+          }
+          if (changed) draw();
+        }
+        lastTime = time;
+        requestAnimationFrame(frame);
+      }
+      $('play').addEventListener('click', () => phase === 'paused' ? togglePause() : start());
+      $('restart').addEventListener('click', start);
+      $('pause').addEventListener('click', () => { togglePause(); if (phase === 'paused') focusGame(); });
+      document.addEventListener('keydown', event => {
+        if (event.ctrlKey || event.metaKey || event.altKey) return;
+        const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
+        if (keys[key]) {
+          event.preventDefault();
+          if (event.repeat) return;
+          if (phase === 'ready' || phase === 'dead' || phase === 'won') start();
+          turn(keys[key]);
+        } else if (event.code === 'Space') {
+          // Preserve normal keyboard activation for focused buttons.
+          if (event.target instanceof HTMLButtonElement) return;
+          event.preventDefault();
+          if (event.repeat) return;
+          if (phase === 'ready' || phase === 'dead' || phase === 'won') start();
+          else togglePause();
+        } else if (event.key === 'Escape' && phase === 'playing') {
+          event.preventDefault(); togglePause();
+        } else if (event.key === 'Enter' && event.target === stage) {
+          event.preventDefault();
+          if (phase === 'paused') togglePause();
+          else if (phase !== 'playing') start();
+        }
+      });
+      document.querySelectorAll('.direction').forEach(button => {
+        button.addEventListener('pointerdown', event => {
+          event.preventDefault();
+          focusGame();
+          if (phase === 'ready' || phase === 'dead' || phase === 'won') start();
+          turn(button.dataset.direction);
+        });
+        // Keyboard and assistive-technology activation has no pointer event.
+        button.addEventListener('click', event => {
+          if (event.detail !== 0) return;
+          if (phase === 'ready' || phase === 'dead' || phase === 'won') start();
+          turn(button.dataset.direction);
+          focusGame();
+        });
+      });
+      stage.addEventListener('pointerdown', event => {
+        if (event.target.closest('button')) return;
+        focusGame();
+        if (phase !== 'playing') return;
+        pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+        stage.setPointerCapture(event.pointerId);
+      });
+      stage.addEventListener('pointermove', event => {
+        if (!pointer || pointer.id !== event.pointerId || phase !== 'playing') return;
+        const dx = event.clientX - pointer.x, dy = event.clientY - pointer.y;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+        turn(Math.abs(dx) > Math.abs(dy) ? dx > 0 ? 'right' : 'left' : dy > 0 ? 'down' : 'up');
+        pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) stage.addEventListener(type, () => { pointer = null; });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && phase === 'playing') togglePause(); });
+      window.addEventListener('blur', () => { if (phase === 'playing') togglePause(); });
+      draw();
+      requestAnimationFrame(frame);
+    })();
+  </script>
+</body>
+</html>
