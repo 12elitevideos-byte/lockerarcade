@@ -205,4 +205,5 @@ window.ARCADE_EXTRA={games:[
 {id:"flash-bowmaster-prelude",name:"Bowmaster Prelude",category:"Action",url:'./play.html?game=flash-bowmaster-prelude',frame:"./flash-player.html?src=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Foldflashgames%2Fgames%40ee4cf6b714632167644f41c687e5f7222e78cfe3%2Fbowmaster-prelude.swf",cover:true},
 {id:"flash-brain-splatters-2",name:"Brain Splatters 2",category:"Action",url:'./play.html?game=flash-brain-splatters-2',frame:"./flash-player.html?src=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Foldflashgames%2Fgames%40ee4cf6b714632167644f41c687e5f7222e78cfe3%2Fbrain-splatters-2.swf",cover:true},
 {id:"flash-the-missile-game-3d",name:"The Missile Game 3D",category:"Arcade",url:'./play.html?game=flash-the-missile-game-3d',frame:"./flash-player.html?src=https%3A%2F%2Fcdn.jsdelivr.net%2Fgh%2Foldflashgames%2Fgames%40ee4cf6b714632167644f41c687e5f7222e78cfe3%2Fthe-missile-game-3d.swf",cover:true}
+,{id:"retro-bowl",name:"Retro Bowl",category:"Sports",url:"./play.html?game=retro-bowl",frame:"https://falloutscript.github.io/Retrobowl/",cover:true}
 ]};
